@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Attendance System Concept</title>
+    <!-- Tailwind CSS for Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4f46e5',
+                        secondary: '#10b981',
+                        dark: '#1e293b'
+                    },
+                    animation: {
+                        'scan': 'scan 2s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+                        'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        scan: {
+                            '0%, 100%': { top: '0%' },
+                            '50%': { top: '100%' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom styles for elements not easily handled by basic Tailwind utilities */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .camera-viewfinder {
+            position: relative;
+            overflow: hidden;
+            border-radius: 1rem;
+            background-color: #0f172a;
+        }
+
+        .camera-corner {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border-color: #4f46e5;
+            border-style: solid;
+            z-index: 10;
+        }
+
+        .corner-tl { top: 20px; left: 20px; border-width: 4px 0 0 4px; border-radius: 8px 0 0 0; }
+        .corner-tr { top: 20px; right: 20px; border-width: 4px 4px 0 0; border-radius: 0 8px 0 0; }
+        .corner-bl { bottom: 20px; left: 20px; border-width: 0 0 4px 4px; border-radius: 0 0 0 8px; }
+        .corner-br { bottom: 20px; right: 20px; border-width: 0 4px 4px 0; border-radius: 0 0 8px 0; }
+
+        .scan-line {
+            position: absolute;
+            left: 5%;
+            width: 90%;
+            height: 2px;
+            background: #4f46e5;
+            box-shadow: 0 0 15px 3px rgba(79, 70, 229, 0.6);
+            z-index: 20;
+        }
+
+        .face-silhouette {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 150px;
+            height: 200px;
+            border: 2px dashed rgba(255,255,255,0.3);
+            border-radius: 50% 50% 40% 40% / 60% 60% 40% 40%;
+        }
+
+        .hide { display: none !important; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans h-screen flex flex-col overflow-hidden">
+
+    <!-- Top Navigation -->
+    <nav class="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center shadow-sm z-50 relative">
+        <div class="flex items-center space-x-2 text-primary">
+            <i data-lucide="scan-face" class="w-8 h-8"></i>
+            <span class="text-xl font-bold tracking-tight">SmartAttend</span>
+        </div>
+        
+        <!-- Role Switcher -->
+        <div class="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+            <button onclick="switchView('student')" id="btn-student-view" class="px-4 py-1.5 rounded-md text-sm font-medium bg-white shadow-sm text-primary transition-all">Student Portal</button>
+            <button onclick="switchView('admin')" id="btn-admin-view" class="px-4 py-1.5 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">Admin Dashboard</button>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <div class="text-right hidden md:block">
+                <p class="text-sm font-semibold" id="active-user-name">Alex Johnson</p>
+                <p class="text-xs text-slate-500" id="active-user-role">Student ID: CS-2026-441</p>
+            </div>
+            <img src="https://ui-avatars.com/api/?name=Alex+Johnson&background=4f46e5&color=fff" alt="Profile" class="w-10 h-10 rounded-full border-2 border-white shadow-sm" id="active-user-avatar">
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 overflow-y-auto relative">
+        
+        <!-- ========================================== -->
+        <!-- STUDENT PORTAL VIEW                        -->
+        <!-- ========================================== -->
+        <div id="student-view" class="max-w-4xl mx-auto p-6 transition-all duration-300">
+            
+            <div class="text-center mb-10 mt-4">
+                <h1 class="text-3xl font-bold text-slate-800 mb-2">Mark Your Attendance</h1>
+                <p class="text-slate-500">Select your preferred method to check in for today's session.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto">
+                <!-- Face Recognition Card -->
+                <div onclick="openScanner('face')" class="bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 hover:border-primary/30 hover:shadow-[0_8px_30px_rgb(79,70,229,0.1)] transition-all cursor-pointer group flex flex-col items-center text-center">
+                    <div class="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                        <i data-lucide="scan-face" class="w-10 h-10 text-primary"></i>
+                    </div>
+                    <h2 class="text-xl font-bold mb-2">Face Recognition</h2>
+                    <p class="text-slate-500 text-sm mb-6">Fast and touchless attendance using AI facial mapping.</p>
+                    <button class="mt-auto px-6 py-2.5 bg-slate-900 text-white font-medium rounded-lg group-hover:bg-primary transition-colors w-full">Use Face Scan</button>
+                </div>
+
+                <!-- QR Code Card -->
+                <div onclick="openScanner('qr')" class="bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 hover:border-secondary/30 hover:shadow-[0_8px_30px_rgb(16,185,129,0.1)] transition-all cursor-pointer group flex flex-col items-center text-center">
+                    <div class="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                        <i data-lucide="qr-code" class="w-10 h-10 text-secondary"></i>
+                    </div>
+                    <h2 class="text-xl font-bold mb-2">QR Code Scan</h2>
+                    <p class="text-slate-500 text-sm mb-6">Scan the unique classroom code generated by the professor.</p>
+                    <button class="mt-auto px-6 py-2.5 bg-slate-900 text-white font-medium rounded-lg group-hover:bg-secondary transition-colors w-full">Scan QR Code</button>
+                </div>
+            </div>
+
+            <!-- Recent Student Activity -->
+            <div class="mt-12 max-w-3xl mx-auto">
+                <h3 class="text-lg font-semibold mb-4 border-b pb-2">Your Recent Activity</h3>
+                <div class="space-y-3" id="student-recent-activity">
+                    <!-- Dynamically populated, or static placeholder -->
+                    <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-2 bg-indigo-50 rounded-lg text-primary"><i data-lucide="scan-face" class="w-5 h-5"></i></div>
+                            <div>
+                                <p class="font-medium text-sm">Advanced Mathematics (MATH301)</p>
+                                <p class="text-xs text-slate-500">Yesterday, 09:00 AM</p>
+                            </div>
+                        </div>
+                        <span class="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">Present</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- ADMIN DASHBOARD VIEW                       -->
+        <!-- ========================================== -->
+        <div id="admin-view" class="h-full flex hide">
+            <!-- Sidebar -->
+            <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col">
+                <div class="p-6">
+                    <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Management</p>
+                    <nav class="space-y-2">
+                        <a href="#" class="flex items-center space-x-3 px-3 py-2 bg-primary/10 text-white rounded-lg">
+                            <i data-lucide="layout-dashboard" class="w-5 h-5 text-primary"></i>
+                            <span class="font-medium">Overview</span>
+                        </a>
+                        <a href="#" class="flex items-center space-x-3 px-3 py-2 hover:bg-slate-800 rounded-lg transition-colors">
+                            <i data-lucide="users" class="w-5 h-5"></i>
+                            <span>Students</span>
+                        </a>
+                        <a href="#" class="flex items-center space-x-3 px-3 py-2 hover:bg-slate-800 rounded-lg transition-colors">
+                            <i data-lucide="calendar-check" class="w-5 h-5"></i>
+                            <span>Reports</span>
+                        </a>
+                    </nav>
+                </div>
+                <div class="p-6 mt-auto">
+                    <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Settings</p>
+                    <nav class="space-y-2">
+                        <a href="#" class="flex items-center space-x-3 px-3 py-2 hover:bg-slate-800 rounded-lg transition-colors">
+                            <i data-lucide="settings" class="w-5 h-5"></i>
+                            <span>System Config</span>
+                        </a>
+                    </nav>
+                </div>
+            </aside>
+
+            <!-- Dashboard Content -->
+            <div class="flex-1 p-8 overflow-y-auto bg-slate-50">
+                <div class="flex justify-between items-end mb-8">
+                    <div>
+                        <h1 class="text-2xl font-bold text-slate-800">Today's Overview</h1>
+                        <p class="text-sm text-slate-500">Computer Science Dept. - Data Structures (CS201)</p>
+                    </div>
+                    <button class="flex items-center space-x-2 bg-white border border-slate-200 px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:bg-slate-50">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        <span>Export CSV</span>
+                    </button>
+                </div>
+
+                <!-- KPI Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm font-medium text-slate-500 mb-1">Total Students</p>
+                                <h3 class="text-3xl font-bold text-slate-800">120</h3>
+                            </div>
+                            <div class="p-3 bg-blue-50 text-blue-600 rounded-lg"><i data-lucide="users"></i></div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm font-medium text-slate-500 mb-1">Present Today</p>
+                                <h3 class="text-3xl font-bold text-emerald-600" id="stat-present">104</h3>
+                            </div>
+                            <div class="p-3 bg-emerald-50 text-emerald-600 rounded-lg"><i data-lucide="check-circle"></i></div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm font-medium text-slate-500 mb-1">Absent</p>
+                                <h3 class="text-3xl font-bold text-rose-600" id="stat-absent">16</h3>
+                            </div>
+                            <div class="p-3 bg-rose-50 text-rose-600 rounded-lg"><i data-lucide="x-circle"></i></div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm font-medium text-slate-500 mb-1">Method Breakdown</p>
+                                <div class="flex items-center space-x-3 mt-2">
+                                    <span class="text-sm flex items-center"><i data-lucide="scan-face" class="w-3 h-3 mr-1 text-primary"></i> <span id="stat-face">60</span></span>
+                                    <span class="text-sm flex items-center"><i data-lucide="qr-code" class="w-3 h-3 mr-1 text-secondary"></i> <span id="stat-qr">44</span></span>
+                                </div>
+                            </div>
+                            <div class="p-3 bg-purple-50 text-purple-600 rounded-lg"><i data-lucide="pie-chart"></i></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Attendance Log Table -->
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                        <h3 class="font-semibold text-slate-800">Live Attendance Log</h3>
+                        <div class="flex items-center space-x-2 text-xs text-slate-500">
+                            <span class="relative flex h-2 w-2">
+                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            <span>Live Updates Active</span>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-50 text-slate-500">
+                                <tr>
+                                    <th class="px-6 py-3 font-medium">Student Info</th>
+                                    <th class="px-6 py-3 font-medium">Time</th>
+                                    <th class="px-6 py-3 font-medium">Method</th>
+                                    <th class="px-6 py-3 font-medium">Confidence / Device</th>
+                                    <th class="px-6 py-3 font-medium">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendance-table-body" class="divide-y divide-slate-100">
+                                <!-- Pre-populated static rows -->
+                                <tr class="hover:bg-slate-50 transition-colors">
+                                    <td class="px-6 py-4 flex items-center space-x-3">
+                                        <img src="https://ui-avatars.com/api/?name=Sarah+Miller&background=f1f5f9" class="w-8 h-8 rounded-full">
+                                        <div>
+                                            <p class="font-medium text-slate-800">Sarah Miller</p>
+                                            <p class="text-xs text-slate-500">CS-2026-112</p>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-slate-600">08:55:12 AM</td>
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center text-primary text-xs font-medium">
+                                            <i data-lucide="scan-face" class="w-4 h-4 mr-1"></i> Face ID
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-slate-500 text-xs">99.8% Match</td>
+                                    <td class="px-6 py-4"><span class="px-2.5 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-md">Present</span></td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition-colors">
+                                    <td class="px-6 py-4 flex items-center space-x-3">
+                                        <img src="https://ui-avatars.com/api/?name=David+Chen&background=f1f5f9" class="w-8 h-8 rounded-full">
+                                        <div>
+                                            <p class="font-medium text-slate-800">David Chen</p>
+                                            <p class="text-xs text-slate-500">CS-2026-084</p>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-slate-600">08:58:45 AM</td>
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center text-secondary text-xs font-medium">
+                                            <i data-lucide="qr-code" class="w-4 h-4 mr-1"></i> QR Scan
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-slate-500 text-xs">iPhone 13 Pro</td>
+                                    <td class="px-6 py-4"><span class="px-2.5 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-md">Present</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ========================================== -->
+    <!-- SCANNER MODAL (Hidden by default)          -->
+    <!-- ========================================== -->
+    <div id="scanner-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center hide opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl transform scale-95 transition-transform duration-300" id="scanner-content">
+            
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                <h3 class="font-bold text-lg text-slate-800" id="scanner-title">Authentication</h3>
+                <button onclick="closeScanner()" class="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body (Scanner Area) -->
+            <div class="p-6 bg-slate-50">
+                <div class="camera-viewfinder w-full h-72 flex items-center justify-center shadow-inner relative">
+                    
+                    <!-- Decorative Corners -->
+                    <div class="camera-corner corner-tl"></div>
+                    <div class="camera-corner corner-tr"></div>
+                    <div class="camera-corner corner-bl"></div>
+                    <div class="camera-corner corner-br"></div>
+                    
+                    <!-- Face Specific Elements -->
+                    <div id="face-elements" class="hide w-full h-full relative">
+                        <div class="face-silhouette"></div>
+                        <div class="scan-line animate-scan"></div>
+                        <p class="absolute bottom-4 w-full text-center text-white text-sm font-medium z-30 tracking-wide animate-pulse-fast">Looking for face...</p>
+                    </div>
+
+                    <!-- QR Specific Elements -->
+                    <div id="qr-elements" class="hide w-full h-full relative flex items-center justify-center">
+                        <div class="w-40 h-40 border-2 border-secondary/50 flex flex-col justify-between p-1">
+                            <div class="w-full h-1 bg-secondary/80 animate-scan absolute left-0 w-full" style="box-shadow: 0 0 10px #10b981;"></div>
+                        </div>
+                        <p class="absolute bottom-4 w-full text-center text-white text-sm font-medium z-30 tracking-wide animate-pulse-fast">Align QR code within frame</p>
+                    </div>
+                    
+                    <!-- Processing / Success Overlay -->
+                    <div id="processing-overlay" class="absolute inset-0 bg-slate-900/90 z-40 flex flex-col items-center justify-center hide backdrop-blur-sm">
+                        <i id="status-icon" data-lucide="loader-2" class="w-12 h-12 text-white animate-spin mb-3"></i>
+                        <p id="status-text" class="text-white font-medium">Verifying...</p>
+                    </div>
+
+                </div>
+                
+                <p class="text-center text-xs text-slate-500 mt-4" id="scanner-instruction">Ensure you are in a well-lit area.</p>
+            </div>
+            
+            <!-- Modal Footer -->
+            <div class="px-6 py-4 bg-white border-t border-slate-100 flex justify-end">
+                <button id="btn-start-scan" class="px-5 py-2 bg-primary text-white font-medium rounded-lg shadow-sm hover:bg-indigo-700 transition-colors w-full">
+                    Start Scan
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // --- View Switching Logic ---
+        const studentView = document.getElementById('student-view');
+        const adminView = document.getElementById('admin-view');
+        const btnStudent = document.getElementById('btn-student-view');
+        const btnAdmin = document.getElementById('btn-admin-view');
+        
+        // Mock User Data for UI changes
+        const studentName = "Alex Johnson";
+        const studentAvatar = "https://ui-avatars.com/api/?name=Alex+Johnson&background=4f46e5&color=fff";
+        const adminName = "Prof. Smith";
+        const adminAvatar = "https://ui-avatars.com/api/?name=Prof+Smith&background=1e293b&color=fff";
+
+        function switchView(view) {
+            if (view === 'student') {
+                studentView.classList.remove('hide');
+                adminView.classList.add('hide');
+                
+                // Toggle Buttons
+                btnStudent.classList.replace('text-slate-500', 'text-primary');
+                btnStudent.classList.replace('hover:text-slate-700', 'bg-white');
+                btnStudent.classList.add('shadow-sm');
+                
+                btnAdmin.classList.replace('text-primary', 'text-slate-500');
+                btnAdmin.classList.replace('bg-white', 'hover:text-slate-700');
+                btnAdmin.classList.remove('shadow-sm');
+
+                // Update Navbar Profile
+                document.getElementById('active-user-name').innerText = studentName;
+                document.getElementById('active-user-role').innerText = "Student ID: CS-2026-441";
+                document.getElementById('active-user-avatar').src = studentAvatar;
+
+            } else {
+                studentView.classList.add('hide');
+                adminView.classList.remove('hide');
+                
+                // Toggle Buttons
+                btnAdmin.classList.replace('text-slate-500', 'text-primary');
+                btnAdmin.classList.replace('hover:text-slate-700', 'bg-white');
+                btnAdmin.classList.add('shadow-sm');
+                
+                btnStudent.classList.replace('text-primary', 'text-slate-500');
+                btnStudent.classList.replace('bg-white', 'hover:text-slate-700');
+                btnStudent.classList.remove('shadow-sm');
+
+                // Update Navbar Profile
+                document.getElementById('active-user-name').innerText = adminName;
+                document.getElementById('active-user-role').innerText = "System Administrator";
+                document.getElementById('active-user-avatar').src = adminAvatar;
+            }
+        }
+
+
+        // --- Scanner Modal Logic ---
+        const modal = document.getElementById('scanner-modal');
+        const modalContent = document.getElementById('scanner-content');
+        let currentScanMode = ''; // 'face' or 'qr'
+
+        // Admin Stats logic
+        let stats = { present: 104, absent: 16, face: 60, qr: 44 };
+
+        function openScanner(type) {
+            currentScanMode = type;
+            
+            // Reset UI
+            document.getElementById('processing-overlay').classList.add('hide');
+            document.getElementById('status-icon').setAttribute('data-lucide', 'loader-2');
+            document.getElementById('status-icon').classList.add('animate-spin', 'text-white');
+            document.getElementById('status-icon').classList.remove('text-emerald-400');
+            document.getElementById('status-text').innerText = 'Verifying...';
+            document.getElementById('btn-start-scan').innerText = 'Start Scan';
+            document.getElementById('btn-start-scan').classList.replace('bg-emerald-600', 'bg-primary');
+            document.getElementById('btn-start-scan').classList.replace('hover:bg-emerald-700', 'hover:bg-indigo-700');
+            document.getElementById('btn-start-scan').onclick = initiateScanProcess;
+
+            if (type === 'face') {
+                document.getElementById('scanner-title').innerText = 'Face Authentication';
+                document.getElementById('scanner-instruction').innerText = 'Look directly at the camera and ensure good lighting.';
+                document.getElementById('face-elements').classList.remove('hide');
+                document.getElementById('qr-elements').classList.add('hide');
+                
+                // Adjust corners colors
+                document.querySelectorAll('.camera-corner').forEach(el => el.style.borderColor = '#4f46e5');
+            } else {
+                document.getElementById('scanner-title').innerText = 'QR Code Scanner';
+                document.getElementById('scanner-instruction').innerText = 'Point your camera at the QR code displayed by the professor.';
+                document.getElementById('face-elements').classList.add('hide');
+                document.getElementById('qr-elements').classList.remove('hide');
+
+                // Adjust corners colors
+                document.querySelectorAll('.camera-corner').forEach(el => el.style.borderColor = '#10b981');
+                document.getElementById('btn-start-scan').classList.replace('bg-primary', 'bg-secondary');
+                document.getElementById('btn-start-scan').classList.replace('hover:bg-indigo-700', 'hover:bg-emerald-600');
+            }
+
+            // Show Modal
+            modal.classList.remove('hide');
+            // Small delay for transition
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+            }, 10);
+            
+            // Re-render icons since we dynamically changed them
+            lucide.createIcons();
+        }
+
+        function closeScanner() {
+            modal.classList.add('opacity-0');
+            modalContent.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hide');
+            }, 300); // match transition duration
+        }
+
+        // Simulate Scanning Process
+        function initiateScanProcess() {
+            const btn = document.getElementById('btn-start-scan');
+            btn.innerText = "Scanning...";
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            const overlay = document.getElementById('processing-overlay');
+            const statusIcon = document.getElementById('status-icon');
+            const statusText = document.getElementById('status-text');
+
+            // Wait 2 seconds simulating processing
+            setTimeout(() => {
+                overlay.classList.remove('hide');
+                
+                // Wait 1.5 seconds simulating API verification call
+                setTimeout(() => {
+                    statusIcon.setAttribute('data-lucide', 'check-circle');
+                    statusIcon.classList.remove('animate-spin');
+                    statusIcon.classList.add('text-emerald-400');
+                    statusText.innerText = 'Attendance Marked Successfully!';
+                    lucide.createIcons();
+
+                    btn.innerText = "Close";
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    
+                    if(currentScanMode === 'face') {
+                         btn.classList.replace('bg-primary', 'bg-emerald-600');
+                         btn.classList.replace('hover:bg-indigo-700', 'hover:bg-emerald-700');
+                    } else {
+                         // already secondary (emerald)
+                         btn.classList.replace('bg-secondary', 'bg-emerald-600');
+                    }
+
+                    btn.onclick = closeScanner;
+
+                    // Trigger Backend Update logic
+                    addRecordToDashboard();
+
+                }, 1500);
+
+            }, 2000);
+        }
+
+        // Update Admin Dashboard Dynamically
+        function addRecordToDashboard() {
+            // 1. Update Metrics
+            stats.present += 1;
+            stats.absent -= 1;
+            if(currentScanMode === 'face') stats.face += 1;
+            if(currentScanMode === 'qr') stats.qr += 1;
+
+            document.getElementById('stat-present').innerText = stats.present;
+            document.getElementById('stat-absent').innerText = stats.absent;
+            document.getElementById('stat-face').innerText = stats.face;
+            document.getElementById('stat-qr').innerText = stats.qr;
+
+            // 2. Add Row to Table
+            const tbody = document.getElementById('attendance-table-body');
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            
+            const tr = document.createElement('tr');
+            tr.className = 'bg-emerald-50/50 hover:bg-slate-50 transition-colors animate-pulse-fast';
+            setTimeout(()=> tr.classList.remove('animate-pulse-fast', 'bg-emerald-50/50'), 2000); // remove highlight after 2s
+
+            const methodHtml = currentScanMode === 'face' 
+                ? `<div class="flex items-center text-primary text-xs font-medium"><i data-lucide="scan-face" class="w-4 h-4 mr-1"></i> Face ID</div>`
+                : `<div class="flex items-center text-secondary text-xs font-medium"><i data-lucide="qr-code" class="w-4 h-4 mr-1"></i> QR Scan</div>`;
+
+            const configText = currentScanMode === 'face' ? '98.5% Match' : 'Session Token Valid';
+
+            tr.innerHTML = `
+                <td class="px-6 py-4 flex items-center space-x-3">
+                    <img src="${studentAvatar}" class="w-8 h-8 rounded-full border border-slate-200">
+                    <div>
+                        <p class="font-medium text-slate-800">${studentName} <span class="ml-1 text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded uppercase font-bold">New</span></p>
+                        <p class="text-xs text-slate-500">CS-2026-441</p>
+                    </div>
+                </td>
+                <td class="px-6 py-4 text-slate-600">${timeStr}</td>
+                <td class="px-6 py-4">${methodHtml}</td>
+                <td class="px-6 py-4 text-slate-500 text-xs">${configText}</td>
+                <td class="px-6 py-4"><span class="px-2.5 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-md shadow-sm">Present</span></td>
+            `;
+
+            // Insert at the top
+            tbody.insertBefore(tr, tbody.firstChild);
+
+            // 3. Update Student Activity Feed
+            const activityFeed = document.getElementById('student-recent-activity');
+            const activityIcon = currentScanMode === 'face' ? 'scan-face' : 'qr-code';
+            const activityColor = currentScanMode === 'face' ? 'text-primary bg-indigo-50' : 'text-secondary bg-emerald-50';
+
+            const newActivity = document.createElement('div');
+            newActivity.className = "bg-white p-4 rounded-xl border border-emerald-200 shadow-sm flex items-center justify-between";
+            newActivity.innerHTML = `
+                <div class="flex items-center space-x-3">
+                    <div class="p-2 ${activityColor} rounded-lg"><i data-lucide="${activityIcon}" class="w-5 h-5"></i></div>
+                    <div>
+                        <p class="font-medium text-sm text-emerald-800">Data Structures (CS201)</p>
+                        <p class="text-xs text-slate-500">Just now, ${timeStr}</p>
+                    </div>
+                </div>
+                <span class="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">Present</span>
+            `;
+            
+            activityFeed.insertBefore(newActivity, activityFeed.firstChild);
+
+            // Re-render icons for new HTML
+            lucide.createIcons();
+        }
+
+    </script>
+</body>
+</html>
